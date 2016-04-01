@@ -1,0 +1,223 @@
+<?php
+
+/**
+ * Implements hook_menu().
+ *
+ * Uses all implementations of hook_cwrc_visualization_info to build menu items
+ * for the visualize tab.
+ */
+function cwrc_visualization_menu() {
+  $items = array();
+  $first = TRUE;
+  $bookmark_first = TRUE;
+
+  foreach (cwrc_visualization_info_tools() as $name => $info) {
+    // Add under "View" tab for islandora objects.
+    $items['islandora/object/%islandora_object/view/' . $name] = array(
+      'title' => $info['label'],
+      'page callback' => 'cwrc_visualization_render',
+      'page arguments' => array(2, $name),
+      'access callback' => isset($info['access callback']) ? $info['access callback'] : 'cwrc_visualization_access',
+      'access arguments' => array(2, $name),
+      'type' => MENU_LOCAL_TASK,
+      'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
+      'weight' => $info['weight'],
+    );
+
+    // Handle visualization tool information for bookmarks.
+    if (isset($info['bookmark path'])) {
+      if ($bookmark_first) {
+        $bookmark_first = FALSE;
+        $items['islandora-bookmark/listid/%/visualize'] = array(
+          'title' => 'Visualize',
+          'page callback' => 'cwrc_visualization_bookmark_render',
+          'page arguments' => array(2, $name),
+          'weight' => -1,
+          'access callback' => 'islandora_bookmark_access',
+          'access arguments' => array(2),
+          'type' => MENU_LOCAL_TASK,
+          'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
+        );
+        $items['islandora-bookmark/listid/%/visualize/' . $name] = array(
+          'title' => $info['label'],
+          'type' => MENU_DEFAULT_LOCAL_TASK,
+          'weight' => $info['weight'],
+        );
+      } else {
+        $items['islandora-bookmark/listid/%/visualize/' . $name] = array(
+          'title' => $info['label'],
+          'page callback' => 'cwrc_visualization_bookmark_render',
+          'page arguments' => array(2, $name),
+          'access callback' => 'islandora_bookmark_access',
+          'access arguments' => array(2),
+          'type' => MENU_LOCAL_TASK,
+          'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
+          'weight' => $info['weight'],
+        );
+      }
+    }
+  }
+
+  return $items;
+}
+
+/**
+ * Implements hook_menu_alter().
+ *
+ * For some reason this only works in the menu_alter and not the hook_menu
+ * proper, oh well.
+ */
+function cwrc_visualization_menu_alter(&$items) {
+  $items['islandora-bookmark/listid/%/plotit']['type'] = MENU_CALLBACK;
+
+  // This is needed to show tabs for islandora bookmark.
+  $items['islandora-bookmark/listid/%/view'] = array(
+    'title' => 'View',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+  );
+}
+
+/**
+ * Implements hook_theme().
+ */
+function cwrc_visualization_theme($existing, $type, $theme, $path) {
+  return array(
+    'cwrc_visualization' => array(
+      'template' => 'templates/cwrc-visualization',
+      'variables' => array('url' => NULL),
+    ),
+  );
+}
+
+/**
+ * Access callback that checks if this cmodel should render the visualization or
+ * not.
+ */
+function cwrc_visualization_access($islandora_object, $tool_name) {
+  $tool = cwrc_visualization_info_tools($tool_name);
+  foreach ($tool['available cmodels'] as $cmodel) {
+    if (in_array($cmodel, $islandora_object->models)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Function to generate a url from a given object and pattern.
+ *
+ * This is separated out for potential future improvements, currently provides
+ * a simple text replacement.
+ */
+function cwrc_visualization_url_generate($pattern, $islandora_object) {
+  return str_replace('%object_pid%', $islandora_object->id, $pattern);
+}
+
+/**
+ * Helper function that returns available tool information (optionally
+ * returning only the specified tool information).
+ */
+function cwrc_visualization_info_tools($tool_name = null) {
+  $tools = module_invoke_all('cwrc_visualization_info');
+  drupal_alter('cwrc_visualization_info', $tools);
+  if (isset($tool_name)) {
+    if (isset($tools[$tool_name])) {
+      return $tools[$tool_name];
+    } else {
+      return null;
+    }
+  }
+  return $tools;
+}
+
+/**
+ * Page render callback that generates the iframe url and then uses the template
+ * to render the iframe for the visualization tool.
+ */
+function cwrc_visualization_render($islandora_object, $tool_name) {
+  $tool = cwrc_visualization_info_tools($tool_name);
+
+  if (isset($tool['url pattern'])) {
+    $url = cwrc_visualization_url_generate($tool['url pattern'], $islandora_object);
+  } else if (isset($tool['url callback'])) {
+    $url = call_user_func($tool['url callback'], $islandora_object);
+  } else {
+    return false;
+  }
+
+  return array(
+    '#theme' => 'cwrc_visualization',
+    '#url' => $url,
+  );
+}
+
+/**
+ * Page render callback that generates the iframe url and then uses the template
+ * to render the iframe for the visualization tool.
+ */
+function cwrc_visualization_bookmark_render($list_id, $tool_name) {
+  $tool = cwrc_visualization_info_tools($tool_name);
+
+  if (isset($tool['bookmark path'])) {
+    $url = url(str_replace('%list_id%', $list_id, $tool['bookmark path']), array('absolute' =>  true));
+  } else {
+    return false;
+  }
+
+  return array(
+    '#theme' => 'cwrc_visualization',
+    '#url' => $url,
+  );
+}
+
+/**
+ * Implements hook_cwrc_visualization_info().
+ *
+ * Does so on behalf of the plotit module, the only visualization tool available
+ * as of yet.
+ */
+function cwrc_visualization_cwrc_visualization_info() {
+  module_load_include('inc', 'islandora_solr', 'includes/utilities');
+  $query = format_string('!isMemberOf:"%object_pid%" OR !isMemberOfCollection:"%object_pid%"', array(
+    '!isMemberOf' => variable_get('islandora_solr_member_of_field', 'RELS_EXT_isMemberOf_uri_ms'),
+    '!isMemberOfCollection' => variable_get('islandora_solr_member_of_collection_field', 'RELS_EXT_isMemberOfCollection_uri_ms'),
+  ));
+  $url = ISLANDORA_SOLR_SEARCH_PATH . "/$query";
+  return array(
+    'plotit' => array(
+      'label' => 'PlotIt',
+      'available cmodels' => array(
+        'islandora:collectionCModel',
+      ),
+      'url pattern' => url($url, array('query' => array('solr_profile' => 'plotit'))),
+      'weight' => -10,
+      'search display' => 'plotit',
+      'search hide facets' => true,
+      'bookmark path' => 'islandora-bookmark/listid/%list_id%/plotit',
+    ),
+  );
+}
+
+/**
+ * Implements hook_block_list_alter().
+ *
+ * Removes the save search form from the visualizations.
+ */
+function cwrc_visualization_block_list_alter(&$blocks) {
+  foreach ($blocks as $delta => $block) {
+    if ($block->module == 'islandora_saved_searches' && $block->delta == 'save_search') {
+      // Get active display and check for likely cwrc_search match
+      $display = isset($_GET['display']) ? $_GET['display'] : false;
+      if ($display && substr($display, 0, 12) == 'cwrc_search_') {
+        $displays = cwrc_search_islandora_solr_primary_display();
+        $active = $displays[$display];
+
+        // We are hiding facets and therefore the saved search block.
+        if (isset($active['hide_facets']) && $active['hide_facets'] === true) {
+          unset($blocks[$delta]);
+        }
+      }
+    }
+  }
+}
