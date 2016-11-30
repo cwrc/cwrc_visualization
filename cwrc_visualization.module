@@ -12,7 +12,6 @@ function cwrc_visualization_menu() {
   // Uses all implementations of hook_cwrc_visualization_info to build menu
   // items for the visualize tab.
   $items = array();
-  $first = TRUE;
   $bookmark_first = TRUE;
 
   foreach (cwrc_visualization_info_tools() as $name => $info) {
