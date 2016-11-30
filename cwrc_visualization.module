@@ -69,11 +69,10 @@ function cwrc_visualization_menu() {
 
 /**
  * Implements hook_menu_alter().
- *
- * For some reason this only works in the menu_alter and not the hook_menu
- * proper, oh well.
  */
 function cwrc_visualization_menu_alter(&$items) {
+  // For some reason these changes only work in a hook_menu_alter() and not the
+  // hook_menu() proper.
   $items['islandora-bookmark/listid/%/plotit']['type'] = MENU_CALLBACK;
 
   // This is needed to show tabs for islandora bookmark.
@@ -97,11 +96,10 @@ function cwrc_visualization_theme($existing, $type, $theme, $path) {
 
 /**
  * Implements hook_cwrc_visualization_info().
- *
- * Does so on behalf of the plotit module, the only visualization tool available
- * as of yet.
  */
 function cwrc_visualization_cwrc_visualization_info() {
+  // Does so on behalf of the plotit module, the only visualization tool
+  // available as of yet.
   module_load_include('inc', 'islandora_solr', 'includes/utilities');
   $query = format_string('!isMemberOf:"%object_pid%" OR !isMemberOfCollection:"%object_pid%"', array(
     '!isMemberOf' => variable_get('islandora_solr_member_of_field', 'RELS_EXT_isMemberOf_uri_ms'),
@@ -125,10 +123,9 @@ function cwrc_visualization_cwrc_visualization_info() {
 
 /**
  * Implements hook_block_list_alter().
- *
- * Removes the save search form from the visualizations.
  */
 function cwrc_visualization_block_list_alter(&$blocks) {
+  // Removes the save search form from the visualizations.
   foreach ($blocks as $delta => $block) {
     if ($block->module == 'islandora_saved_searches' && $block->delta == 'save_search') {
       // Get active display and check for likely cwrc_search match.
