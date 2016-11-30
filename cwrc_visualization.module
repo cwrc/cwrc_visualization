@@ -95,33 +95,6 @@ function cwrc_visualization_theme($existing, $type, $theme, $path) {
 }
 
 /**
- * Implements hook_cwrc_visualization_info().
- */
-function cwrc_visualization_cwrc_visualization_info() {
-  // Does so on behalf of the plotit module, the only visualization tool
-  // available as of yet.
-  module_load_include('inc', 'islandora_solr', 'includes/utilities');
-  $query = format_string('!isMemberOf:"%object_pid%" OR !isMemberOfCollection:"%object_pid%"', array(
-    '!isMemberOf' => variable_get('islandora_solr_member_of_field', 'RELS_EXT_isMemberOf_uri_ms'),
-    '!isMemberOfCollection' => variable_get('islandora_solr_member_of_collection_field', 'RELS_EXT_isMemberOfCollection_uri_ms'),
-  ));
-  $url = ISLANDORA_SOLR_SEARCH_PATH . "/$query";
-  return array(
-    'plotit' => array(
-      'label' => 'PlotIt',
-      'available cmodels' => array(
-        'islandora:collectionCModel',
-      ),
-      'url pattern' => url($url, array('query' => array('solr_profile' => 'plotit'))),
-      'weight' => -10,
-      'search display' => 'plotit',
-      'search hide facets' => TRUE,
-      'bookmark path' => 'islandora-bookmark/listid/%list_id%/plotit',
-    ),
-  );
-}
-
-/**
  * Implements hook_block_list_alter().
  */
 function cwrc_visualization_block_list_alter(&$blocks) {
@@ -149,10 +122,11 @@ function cwrc_visualization_block_list_alter(&$blocks) {
  * Access callback: check if this cmodel should render the visualization.
  */
 function cwrc_visualization_access($islandora_object, $tool_name) {
-  $tool = cwrc_visualization_info_tools($tool_name);
-  foreach ($tool['available cmodels'] as $cmodel) {
-    if (in_array($cmodel, $islandora_object->models)) {
-      return TRUE;
+  if ($tool = cwrc_visualization_info_tools($tool_name)) {
+    foreach ($tool['available cmodels'] as $cmodel) {
+      if (in_array($cmodel, $islandora_object->models)) {
+        return TRUE;
+      }
     }
   }
 
